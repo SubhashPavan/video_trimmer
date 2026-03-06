@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: video-cutter
-          image: <YOUR_ACR_NAME>.azurecr.io/video-cutter:latest   # Replace with your ACR
+          image: videocutteracr.azurecr.io/video-cutter:v1
           ports:
             - containerPort: 3000
           env:
