@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Cutter</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+
+    .app {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      margin-bottom: 24px;
+      color: #fff;
+    }
+
+    h1 span { color: #7c5cfc; }
+
+    /* Upload area */
+    .upload-area {
+      border: 2px dashed #333;
+      border-radius: 12px;
+      padding: 60px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 24px;
+    }
+
+    .upload-area:hover, .upload-area.dragover {
+      border-color: #7c5cfc;
+      background: rgba(124, 92, 252, 0.05);
+    }
+
+    .upload-area.uploading {
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    .upload-area svg { margin-bottom: 12px; }
+
+    .upload-area p {
+      font-size: 1rem;
+      color: #888;
+    }
+
+    .upload-area p strong { color: #7c5cfc; }
+
+    .upload-area input { display: none; }
+
+    /* Video section */
+    .video-section {
+      display: none;
+      margin-bottom: 24px;
+    }
+
+    .video-section.visible { display: block; }
+
+    .video-container {
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    video {
+      width: 100%;
+      display: block;
+      max-height: 500px;
+    }
+
+    /* Timeline */
+    .timeline-wrapper {
+      background: #1a1a1a;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .timeline-bar {
+      position: relative;
+      height: 40px;
+      background: #2a2a2a;
+      border-radius: 6px;
+      cursor: pointer;
+      overflow: visible;
+      margin-bottom: 12px;
+    }
+
+    .timeline-progress {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: rgba(124, 92, 252, 0.25);
+      border-radius: 6px 0 0 6px;
+      pointer-events: none;
+    }
+
+    .timeline-playhead {
+      position: absolute;
+      top: -4px;
+      width: 3px;
+      height: 48px;
+      background: #fff;
+      border-radius: 2px;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .cut-marker {
+      position: absolute;
+      top: -6px;
+      width: 4px;
+      height: 52px;
+      background: #ff4444;
+      border-radius: 2px;
+      z-index: 4;
+      cursor: grab;
+    }
+
+    .cut-marker::after {
+      content: '';
+      position: absolute;
+      top: -6px;
+      left: -6px;
+      width: 16px;
+      height: 16px;
+      background: #ff4444;
+      border-radius: 50%;
+      border: 2px solid #fff;
+    }
+
+    .time-display {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: #888;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    button:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: #7c5cfc;
+      color: #fff;
+    }
+
+    .btn-primary:hover { background: #6a48e8; }
+
+    .btn-primary:disabled {
+      background: #3a3a3a;
+      color: #666;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #2a2a2a;
+      color: #e0e0e0;
+    }
+
+    .btn-secondary:hover { background: #333; }
+
+    .btn-danger {
+      background: #3a1a1a;
+      color: #ff6666;
+    }
+
+    .btn-danger:hover { background: #4a2020; }
+
+    .btn-success {
+      background: #1a3a1a;
+      color: #66ff66;
+    }
+
+    .btn-success:hover { background: #204a20; }
+
+    /* Cut points list */
+    .cuts-section {
+      display: none;
+      margin-bottom: 24px;
+    }
+
+    .cuts-section.visible { display: block; }
+
+    .cuts-section h2 {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      color: #ccc;
+    }
+
+    .cut-points-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .cut-point-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #1a1a1a;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .cut-point-item .marker-color {
+      width: 12px;
+      height: 12px;
+      background: #ff4444;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .cut-point-item .time {
+      font-size: 0.95rem;
+      color: #fff;
+      flex: 1;
+    }
+
+    .cut-point-item input {
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      width: 110px;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .cut-point-item input:focus {
+      outline: none;
+      border-color: #7c5cfc;
+    }
+
+    .cut-point-item .remove-btn {
+      background: none;
+      border: none;
+      color: #666;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .cut-point-item .remove-btn:hover { color: #ff4444; }
+
+    /* Segments preview */
+    .segments-preview {
+      margin-bottom: 24px;
+    }
+
+    .segments-preview h2 {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      color: #ccc;
+    }
+
+    .segment-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .segment-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1a1a1a;
+      padding: 12px 16px;
+      border-radius: 8px;
+    }
+
+    .segment-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .segment-badge {
+      background: #7c5cfc;
+      color: #fff;
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    .segment-times {
+      font-size: 0.9rem;
+      color: #aaa;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Processing */
+    .processing-section {
+      display: none;
+    }
+
+    .processing-section.visible { display: block; }
+
+    .progress-bar-container {
+      background: #2a2a2a;
+      border-radius: 8px;
+      overflow: hidden;
+      height: 8px;
+      margin-bottom: 12px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: #7c5cfc;
+      border-radius: 8px;
+      transition: width 0.3s;
+      width: 0%;
+    }
+
+    .progress-text {
+      font-size: 0.9rem;
+      color: #888;
+      text-align: center;
+    }
+
+    /* Results */
+    .results-section {
+      display: none;
+    }
+
+    .results-section.visible { display: block; }
+
+    .results-section h2 {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      color: #ccc;
+    }
+
+    .result-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1a1a1a;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .result-name {
+      font-size: 0.9rem;
+      color: #e0e0e0;
+    }
+
+    .file-name-label {
+      font-size: 0.85rem;
+      color: #888;
+      margin-top: 8px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.visible {
+      display: flex;
+    }
+
+    .modal {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 16px;
+      padding: 32px;
+      width: 380px;
+      max-width: 90vw;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      animation: modalIn 0.2s ease-out;
+    }
+
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.95) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .modal h3 {
+      font-size: 1.1rem;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    .modal p {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 20px;
+    }
+
+    .modal-input-group {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-input-group input {
+      width: 70px;
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      color: #fff;
+      padding: 12px 8px;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      font-family: inherit;
+    }
+
+    .modal-input-group input.ss-input {
+      width: 80px;
+    }
+
+    .modal-input-group input:focus {
+      outline: none;
+      border-color: #7c5cfc;
+      box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.15);
+    }
+
+    .modal-input-group input::placeholder {
+      color: #555;
+    }
+
+    .modal-error {
+      color: #ff6666;
+      font-size: 0.8rem;
+      min-height: 20px;
+      margin-bottom: 16px;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .modal-buttons button {
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .controls { flex-direction: column; }
+      button { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1><span>&#9998;</span> Video Cutter</h1>
+
+    <!-- Upload -->
+    <div class="upload-area" id="uploadArea">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="1.5">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <p>Drag & drop your <strong>.mp4</strong> video here or <strong>click to browse</strong></p>
+      <p class="file-name-label" id="fileName"></p>
+      <input type="file" id="fileInput" accept="video/mp4,.mp4">
+    </div>
+
+    <!-- Video Player -->
+    <div class="video-section" id="videoSection">
+      <div class="video-container">
+        <video id="videoPlayer" controls></video>
+      </div>
+
+      <!-- Timeline -->
+      <div class="timeline-wrapper">
+        <div class="timeline-bar" id="timelineBar">
+          <div class="timeline-progress" id="timelineProgress"></div>
+          <div class="timeline-playhead" id="playhead"></div>
+        </div>
+        <div class="time-display">
+          <span id="currentTime">00:00:00.0</span>
+          <span id="durationTime">00:00:00.0</span>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <button class="btn-primary" id="addCutBtn">+ Add Cut at Current Time</button>
+        <button class="btn-secondary" id="addCutManualBtn">+ Add Cut Manually</button>
+        <button class="btn-danger" id="clearCutsBtn">Clear All Cuts</button>
+        <button class="btn-primary" id="splitBtn" disabled>Split Video</button>
+      </div>
+    </div>
+
+    <!-- Cut Points -->
+    <div class="cuts-section" id="cutsSection">
+      <h2>Cut Points</h2>
+      <div class="cut-points-list" id="cutPointsList"></div>
+
+      <div class="segments-preview" id="segmentsPreview">
+        <h2>Resulting Segments</h2>
+        <div class="segment-list" id="segmentList"></div>
+      </div>
+    </div>
+
+    <!-- Processing -->
+    <div class="processing-section" id="processingSection">
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <p class="progress-text" id="progressText">Processing...</p>
+    </div>
+
+    <!-- Results -->
+    <div class="results-section" id="resultsSection">
+      <h2>Download Parts</h2>
+      <div id="resultsList"></div>
+      <div class="controls" style="margin-top: 16px;">
+        <button class="btn-success" id="downloadAllBtn">Download All</button>
+        <button class="btn-secondary" id="resetBtn">Cut Another Video</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual Cut Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <h3>Add Cut Point</h3>
+      <p>Enter the timestamp where you want to cut</p>
+      <div class="modal-input-group">
+        <input type="text" id="modalHH" placeholder="HH" maxlength="2">
+        <span style="color:#555; font-size:1.4rem; line-height:46px;">:</span>
+        <input type="text" id="modalMM" placeholder="MM" maxlength="2">
+        <span style="color:#555; font-size:1.4rem; line-height:46px;">:</span>
+        <input type="text" id="modalSS" class="ss-input" placeholder="SS.s" maxlength="4">
+      </div>
+      <div class="modal-error" id="modalError"></div>
+      <div class="modal-buttons">
+        <button class="btn-secondary" id="modalCancel">Cancel</button>
+        <button class="btn-primary" id="modalConfirm">Add Cut</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let videoFile = null;
+    let videoDuration = 0;
+    let cutPoints = [];
+    let uploadedId = null;
+    let originalName = '';
+    let resultSegments = [];
+
+    // DOM
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameLabel = document.getElementById('fileName');
+    const videoSection = document.getElementById('videoSection');
+    const videoPlayer = document.getElementById('videoPlayer');
+    const timelineBar = document.getElementById('timelineBar');
+    const timelineProgress = document.getElementById('timelineProgress');
+    const playhead = document.getElementById('playhead');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationTimeEl = document.getElementById('durationTime');
+    const addCutBtn = document.getElementById('addCutBtn');
+    const addCutManualBtn = document.getElementById('addCutManualBtn');
+    const clearCutsBtn = document.getElementById('clearCutsBtn');
+    const splitBtn = document.getElementById('splitBtn');
+    const cutsSection = document.getElementById('cutsSection');
+    const cutPointsList = document.getElementById('cutPointsList');
+    const segmentList = document.getElementById('segmentList');
+    const processingSection = document.getElementById('processingSection');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const resultsSection = document.getElementById('resultsSection');
+    const resultsList = document.getElementById('resultsList');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    // Format time
+    function formatTime(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      const ms = Math.floor((seconds % 1) * 10);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${ms}`;
+    }
+
+    function parseTime(str) {
+      const parts = str.split(':');
+      if (parts.length !== 3) return NaN;
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const s = parseFloat(parts[2]);
+      if (isNaN(h) || isNaN(m) || isNaN(s)) return NaN;
+      return h * 3600 + m * 60 + s;
+    }
+
+    // Upload handling
+    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type === 'video/mp4') loadVideo(file);
+    });
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) loadVideo(e.target.files[0]);
+    });
+
+    async function loadVideo(file) {
+      videoFile = file;
+      originalName = file.name;
+      fileNameLabel.textContent = 'Uploading ' + file.name + '...';
+      uploadArea.classList.add('uploading');
+
+      // Upload to server
+      const formData = new FormData();
+      formData.append('video', file);
+
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        uploadedId = data.id;
+        fileNameLabel.textContent = file.name;
+        uploadArea.classList.remove('uploading');
+
+        // Show video player
+        const url = URL.createObjectURL(file);
+        videoPlayer.src = url;
+        videoSection.classList.add('visible');
+        cutPoints = [];
+        resultSegments = [];
+        resultsSection.classList.remove('visible');
+        renderCuts();
+      } catch (err) {
+        fileNameLabel.textContent = 'Upload failed: ' + err.message;
+        uploadArea.classList.remove('uploading');
+      }
+    }
+
+    // Video events
+    videoPlayer.addEventListener('loadedmetadata', () => {
+      videoDuration = videoPlayer.duration;
+      durationTimeEl.textContent = formatTime(videoDuration);
+    });
+
+    videoPlayer.addEventListener('timeupdate', () => {
+      const pct = (videoPlayer.currentTime / videoDuration) * 100;
+      timelineProgress.style.width = pct + '%';
+      playhead.style.left = `calc(${pct}% - 1.5px)`;
+      currentTimeEl.textContent = formatTime(videoPlayer.currentTime);
+    });
+
+    // Timeline click to seek
+    timelineBar.addEventListener('click', (e) => {
+      const rect = timelineBar.getBoundingClientRect();
+      const pct = (e.clientX - rect.left) / rect.width;
+      videoPlayer.currentTime = pct * videoDuration;
+    });
+
+    // Add cut at current time
+    addCutBtn.addEventListener('click', () => {
+      const t = videoPlayer.currentTime;
+      if (t > 0 && t < videoDuration) {
+        addCutPoint(t);
+      }
+    });
+
+    // Modal elements
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalHH = document.getElementById('modalHH');
+    const modalMM = document.getElementById('modalMM');
+    const modalSS = document.getElementById('modalSS');
+    const modalError = document.getElementById('modalError');
+    const modalCancel = document.getElementById('modalCancel');
+    const modalConfirm = document.getElementById('modalConfirm');
+
+    function openModal() {
+      const cur = videoPlayer.currentTime;
+      const h = Math.floor(cur / 3600);
+      const m = Math.floor((cur % 3600) / 60);
+      const s = (cur % 60);
+      modalHH.value = String(h).padStart(2, '0');
+      modalMM.value = String(m).padStart(2, '0');
+      modalSS.value = s.toFixed(1);
+      modalError.textContent = '';
+      modalOverlay.classList.add('visible');
+      modalMM.select();
+    }
+
+    function closeModal() {
+      modalOverlay.classList.remove('visible');
+    }
+
+    function confirmModal() {
+      const h = parseInt(modalHH.value, 10) || 0;
+      const m = parseInt(modalMM.value, 10) || 0;
+      const s = parseFloat(modalSS.value) || 0;
+
+      if (h < 0 || m < 0 || m > 59 || s < 0 || s >= 60) {
+        modalError.textContent = 'Invalid time values. Minutes: 0-59, Seconds: 0-59.9';
+        return;
+      }
+
+      const t = h * 3600 + m * 60 + s;
+
+      if (t <= 0 || t >= videoDuration) {
+        modalError.textContent = `Time must be between 00:00:00.1 and ${formatTime(videoDuration)}`;
+        return;
+      }
+
+      addCutPoint(t);
+      closeModal();
+    }
+
+    // Add cut manually
+    addCutManualBtn.addEventListener('click', openModal);
+    modalCancel.addEventListener('click', closeModal);
+    modalConfirm.addEventListener('click', confirmModal);
+
+    // Close on overlay click
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeModal();
+    });
+
+    // Enter key confirms, Escape closes
+    [modalHH, modalMM, modalSS].forEach(input => {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') confirmModal();
+        if (e.key === 'Escape') closeModal();
+      });
+    });
+
+    // Auto-tab: move to next field after 2 digits for HH/MM
+    modalHH.addEventListener('input', () => {
+      if (modalHH.value.length >= 2) modalMM.focus();
+    });
+    modalMM.addEventListener('input', () => {
+      if (modalMM.value.length >= 2) modalSS.focus();
+    });
+
+    function addCutPoint(time) {
+      if (cutPoints.some(cp => Math.abs(cp - time) < 0.1)) return;
+      cutPoints.push(time);
+      cutPoints.sort((a, b) => a - b);
+      renderCuts();
+    }
+
+    // Clear cuts
+    clearCutsBtn.addEventListener('click', () => {
+      cutPoints = [];
+      renderCuts();
+    });
+
+    function renderCuts() {
+      document.querySelectorAll('.cut-marker').forEach(m => m.remove());
+
+      cutPoints.forEach((t) => {
+        const marker = document.createElement('div');
+        marker.className = 'cut-marker';
+        marker.style.left = `calc(${(t / videoDuration) * 100}% - 2px)`;
+        marker.title = formatTime(t);
+        marker.addEventListener('click', (e) => {
+          e.stopPropagation();
+          videoPlayer.currentTime = t;
+        });
+        timelineBar.appendChild(marker);
+      });
+
+      if (cutPoints.length > 0) {
+        cutsSection.classList.add('visible');
+        cutPointsList.innerHTML = cutPoints.map((t, i) => `
+          <div class="cut-point-item">
+            <div class="marker-color"></div>
+            <span class="time">Cut ${i + 1}:</span>
+            <input type="text" value="${formatTime(t)}" data-index="${i}" class="cut-time-input">
+            <button class="remove-btn" data-index="${i}" title="Remove">&times;</button>
+          </div>
+        `).join('');
+
+        cutPointsList.querySelectorAll('.cut-time-input').forEach(input => {
+          input.addEventListener('change', (e) => {
+            const idx = parseInt(e.target.dataset.index);
+            const newTime = parseTime(e.target.value);
+            if (!isNaN(newTime) && newTime > 0 && newTime < videoDuration) {
+              cutPoints[idx] = newTime;
+              cutPoints.sort((a, b) => a - b);
+              renderCuts();
+            } else {
+              e.target.value = formatTime(cutPoints[idx]);
+            }
+          });
+        });
+
+        cutPointsList.querySelectorAll('.remove-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const idx = parseInt(e.target.dataset.index);
+            cutPoints.splice(idx, 1);
+            renderCuts();
+          });
+        });
+
+        const segments = getSegments();
+        segmentList.innerHTML = segments.map((seg, i) => `
+          <div class="segment-item">
+            <div class="segment-info">
+              <span class="segment-badge">Part ${i + 1}</span>
+              <span class="segment-times">${formatTime(seg.start)} &rarr; ${formatTime(seg.end)}</span>
+            </div>
+            <span class="segment-times">${formatTime(seg.end - seg.start)}</span>
+          </div>
+        `).join('');
+
+        splitBtn.disabled = false;
+      } else {
+        cutsSection.classList.remove('visible');
+        splitBtn.disabled = true;
+      }
+    }
+
+    function getSegments() {
+      const points = [0, ...cutPoints, videoDuration];
+      const segments = [];
+      for (let i = 0; i < points.length - 1; i++) {
+        segments.push({ start: points[i], end: points[i + 1] });
+      }
+      return segments;
+    }
+
+    // Split video via server
+    splitBtn.addEventListener('click', async () => {
+      if (cutPoints.length === 0 || !uploadedId) return;
+
+      processingSection.classList.add('visible');
+      splitBtn.disabled = true;
+      resultsSection.classList.remove('visible');
+
+      progressText.textContent = 'Splitting video...';
+      progressBar.style.width = '50%';
+
+      try {
+        const res = await fetch('/api/split', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: uploadedId,
+            originalName: originalName,
+            cutPoints: cutPoints
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        resultSegments = data.segments;
+        progressBar.style.width = '100%';
+        progressText.textContent = 'Done!';
+
+        setTimeout(() => {
+          processingSection.classList.remove('visible');
+          showResults();
+        }, 500);
+
+      } catch (err) {
+        progressText.textContent = 'Error: ' + err.message;
+        progressBar.style.width = '0%';
+        splitBtn.disabled = false;
+      }
+    });
+
+    function showResults() {
+      resultsSection.classList.add('visible');
+      resultsList.innerHTML = resultSegments.map((r, i) => `
+        <div class="result-item">
+          <div>
+            <div class="result-name">${r.name}</div>
+            <span class="segment-times">${formatTime(r.start)} &rarr; ${formatTime(r.end)}</span>
+          </div>
+          <button class="btn-primary" onclick="downloadPart(${i})">Download</button>
+        </div>
+      `).join('');
+    }
+
+    function downloadPart(index) {
+      const r = resultSegments[index];
+      const a = document.createElement('a');
+      a.href = `/api/download/${uploadedId}/${encodeURIComponent(r.name)}`;
+      a.download = r.name;
+      a.click();
+    }
+
+    downloadAllBtn.addEventListener('click', () => {
+      resultSegments.forEach((_, i) => {
+        setTimeout(() => downloadPart(i), i * 500);
+      });
+    });
+
+    resetBtn.addEventListener('click', () => {
+      // Cleanup server files
+      if (uploadedId) {
+        fetch(`/api/cleanup/${uploadedId}`, { method: 'DELETE' }).catch(() => {});
+      }
+      cutPoints = [];
+      resultSegments = [];
+      uploadedId = null;
+      resultsSection.classList.remove('visible');
+      cutsSection.classList.remove('visible');
+      videoSection.classList.remove('visible');
+      fileInput.value = '';
+      fileNameLabel.textContent = '';
+      videoPlayer.src = '';
+      splitBtn.disabled = true;
+    });
+  </script>
+</body>
+</html>

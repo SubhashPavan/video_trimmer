@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: video-cutter
+  labels:
+    app: video-cutter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: video-cutter
+  template:
+    metadata:
+      labels:
+        app: video-cutter
+    spec:
+      containers:
+        - name: video-cutter
+          image: <YOUR_ACR_NAME>.azurecr.io/video-cutter:latest   # Replace with your ACR
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: MAX_FILE_SIZE
+              value: "2147483648"        # 2GB
+            - name: CLEANUP_AGE_MS
+              value: "1800000"           # 30 minutes
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: tmp-storage
+              mountPath: /app/uploads
+              subPath: uploads
+            - name: tmp-storage
+              mountPath: /app/output
+              subPath: output
+      volumes:
+        - name: tmp-storage
+          emptyDir:
+            sizeLimit: 10Gi               # Adjust based on expected usage
